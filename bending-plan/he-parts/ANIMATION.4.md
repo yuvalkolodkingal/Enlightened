@@ -191,7 +191,7 @@ noBrake true, defaultSpeed 0.07; עוגנים: HOVER = `FIRE_JETTING` (אגרו�
 
 **משותק (`PARALYSED`, כש-`bending:paralysed`):** שחקנים: העמידה `PARALYSED` (זרועות פשוטות נוקשות, רגליים נעולות
 פשוקות, ראש −8, **רעידה מהירה 2 ב-6.0** על הזרועות והראש, הטיה −6), קלט נעול; משקל מחזור ההליכה → 0; יצורים: הרנדרר
-רועד (רעידת x/z של 0.02 ב-6 rad/tick) והזנב דמוי האדם מפשיט את הזרועות (−20,0,±46), הראש לאחור;
+רועד (רעידת x/z של 0.02 ב-6 rad/tick) והזנב דמוי האדם פורש את הזרועות (−20,0,±46), הראש לאחור;
 אפקטים: 2 `ELECTRIC_SPARK` בטיק זוחלים על הגוף, גוון הבהוב לבן-כחול (`#DDF4FF`, וו צבע, 3 Hz), העיניים
 לבנות; צליל `paralysed_loop` (פצפוץ זמזום, עוצמה 0.4) אצל הקורבן; שכבת הכיסוי בגוף ראשון 2.2. שחרור: הגוף
 **צונח** (`HIT_STAGGER` במשקל מלא: הטיה −14 ואז למעלה) ו-6 ניצוצות נושרים.
@@ -266,7 +266,7 @@ noBrake true, defaultSpeed 0.07; עוגנים: HOVER = `FIRE_JETTING` (אגרו�
 | 14.14 | **שכבות כיסוי למסך** | `ArmourSlitOverlay`, `SpiritOverlay`, `BloodOverlay`, `ParalysisOverlay`, `QuicksandOverlay`, `BubbleOverlay`, `HeatOverlay`, `RedirectPathOverlay` (ברק במרחב המסך) | נתיב לכל אלמנט |
 | 14.15 | **מצייר קרן להבה** | `BeamRenderer.Drawer` לסגנון FLAME: מתיחה הפוכה, לשונות במקום גדילים, שתי קרניים לכל שחקן (`offHand`) | 1.3 FX |
 | 14.16 | **אפקט FX של ברק** | `LightningFx`: הברק המסתעף בן 3 השכבות עם עיצובים מחדש וכדורי הבזק, גרסת מסלול בגוף | 1.3 FX |
-| 14.17 | **משטחי מים** | סרטים וכדורים של `MATTER_TEXTURED(water_still/water_flow)` שמשתמשים בספריטים המונפשים של המים של Vanilla (חיפוש ספריט ב-`TextureAtlas.LOCATION_BLOCKS`) עם גוון המים של הביום | 1.2 FX |
+| 14.17 | **משטחי מים** | סרטים וכדורים של `MATTER_TEXTURED(water_still/water_flow)` שמשתמשים בספריטים המונפשים של המים של Vanilla (חיפוש ספריט ב-`TextureAtlas.LOCATION_BLOCKS`) עם גוון המים של הביומה | 1.2 FX |
 
 ### 14.2 מבחנים שמקבעים את כל זה (`*AnimationTests` של נתיב האנימציה, בצד השרת, טהורים)
 
