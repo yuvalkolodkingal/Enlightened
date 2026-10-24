@@ -398,3 +398,134 @@ ticks)`; יכולת שלא עשתה כלום לא מתחילה זמן המתנה
 **ניבוי (prediction)**: הלקוח מנגן תנועה מיד בלחיצת מקש כש-`BenderData` שלו וההגדרות המסונכרנות אומרים שהיכולת
 תעבוד (‏`predictedGesture`), ובולע את הקצה של השרת בתוך 12 טיקים (לוגיקת `GestureTable` מועתקת); שימושים שנדחו
 מתנגנים עד הסוף בלי נזק.
+
+## 10. רשת: `ModNetwork`
+
+ערוץ חובה אחד `PROTOCOL_VERSION = "1"` (מועלה פעם אחת בכל גרסה: "2" ב-1.1, "3" ב-1.2, "4" ב-1.3: לקוח 1.0
+לא יכול להצטרף לשרת 1.1), וערוץ מוזיקה אופציונלי אחד. הודעות: לכיוון השרת `ability_key(int slot, boolean down,
+boolean sneak)`, ‏`bending_action(byte action, String id, List<String> slots, String name)`, ‏`element_choice(Element)`,
+‏`spirit_move(Vec3)`, ‏`glider_dye(DyeColor)`; לכיוון הלקוח `element_screen()`, ‏`earth_fx`, `air_fx`, `water_fx`, `fire_fx`
+(הרשומה `(byte kind, int id, Vec3 a, Vec3 b, int c, int d)`; סוגים לפי אלמנט בטווחים: אדמה 1–99, אוויר 100–199,
+מים 200–299, אש 300–399, משותפים 400+), ‏`beam(int shooter, String style, float range, boolean on)`, ‏`spirit(byte op, int
+id)`, ‏`config_file(String name, String text)` (שלב ההגדרה), ‏`hello` (שלב ההגדרה, ב-Fabric בלבד). כל
+מטפל הוא **קריאה סטטית אחת למחלקת לקוח** (הכלל של Enhanced, כך ששרת ייעודי אף פעם לא טוען אותה).
+
+## 11. הצמדות מקשים (`client/KeyBindings`)
+
+‏`SLOTS[4]` = `Keys.newKey("key.bending.slot_" + n, KeyContext.IN_GAME, KEYSYM, {X, C, LEFT_ALT, K}[n], "key.categories.bending")`,
+‏`MENU` = O. ‏`ClientEvents.handleKeys` הוא של Enhanced (לכידת התכופפות בזמן הלחיצה, `consumeClick`, `SENT_DOWN`, ניבוי),
+כש-`MENU` פותח את `BendingScreen` והתכופפות + `MENU` שולחים `bending_action(LOOK_NEXT)`.
+
+## 12. פקודות
+
+‏`/bending element get|set <players> <element|none>`, ‏`points get|give|set <players> <n>`, ‏`mastery get|set <player>
+<ability> <level>`, ‏`unlock <player> <ability|all>`, ‏`loadout <player> <slot> <ability>`, ‏`look <players> <look>`,
+‏`zaheer open|reset <player>`, ‏`sever <player> <seconds>|restore <player>`, ‏`temp revert_all [radius]`, ‏`debug
+listener_order|anim|fx`, הצעות: `duel`, `dummy`. למפעילים בלבד (רמה 2) חוץ מ-`/bending help`.
+
+## 13. תאימות ל-Enhanced (`compat/`)
+
+‏`BendingCompat.enhanced()` נכון כשברשימת המודים יש `enhanced`; ‏`EnhancedHooks` (נטען רק אז, במחלקה משלו כך
+שה-JVM אף פעם לא פותר את הטיפוסים של Enhanced אחרת) שואל: ‏`Shelters.keepsOut(level, actor, from, to)` לפני
+שקו של יכולת חוצה Hex/הגנה/מחסום (היכולת נעצרת שם, כמו הקרניים של Enhanced), ‏`BossFights.protects(level,
+pos)` ב-`BendingRights`, ‏`Metal.isMetalHero(player)` ← Bending **עונה** עליו עבור לובשי שריון פלדה דרך
+פרדיקט רשום אם Enhanced חושף כזה (היום זו תפר בתוך Enhanced: בקשה בשורה אחת `request(I)` ל-Enhanced להוסיף
+‏`Metal.addMetalRule(Predicate<Player>)`; עד אז, בלי אינטרופ), ‏`Powers.power(player) != NONE` בשביל `allowWithEnhancedPower`.
+Enhanced אף פעם לא צריך את Bending.
+
+## 14. אסטרטגיית מבחנים
+
+### 14.1 מבחני משחק (GameTests) (המתאם המועתק; `@BendingTest(template, batch, timeoutTicks)`; ‏`TestKit` מועתק עם `Fixture`,
+‏`player(x,y,z, Element)`, ו-`press(player, slot, sneak)` **נוסף** כעוזר בערכה (‏`AbilityHandler.onKey` למטה+למעלה עם דגל
+ההתכופפות), ‏`hold(player, slot, ticks)`, ‏`tickBender(player)` (‏`player.doTick()` + `BenderTicker.tick`), ‏`config`,
+‏`pvp`, `everyTick`, `heardSounds`, `sentPackets`, `particlesIn`, `tempBlocksOf(player)`, ‏`moon(level, phase, night)`)
+
+מחלקות משותפות: ‏`SkeletonTests` (רשימת היכולות וסדרן, ‏`PROTOCOL_VERSION`, התוספים, לכל יכולת יש
+אייקון/שפה/סוג נזק, אין סימוני שפה חסרים, ביטי `Live` נכנסים), ‏`DataTests` (בשני קובצי השפה אותם מפתחות ואותם משתני מקום,
+לכל צליל יש קובץ וכתובית, לכל מראה עור של 64×64, כל פריט/בלוק/אפקט/סוג נזק בעל שם), ‏`SoundAssetTests`,
+‏`AnimationMathTests` (+ כללי leg-z/roll החדשים), ‏`AnimationSignalTests` (מהלך שאין לו על מה לפעול לא מתחיל
+זמן המתנה; מהלך שעובד מתחיל אותו ומעלה את ה-`Live` שלו), ‏`NetworkTests` (‏hello, תקרות), ‏`PlatformSeamTests`, ‏`ConfigFileTests`,
+‏`TempBlockTests` (הצבה/החזרה/התאוששות יומן/תקרות/הרשאות/נוזלים/ישויות בלוק נדחות/בלי נפילות/שחקן עומד
+נדחף למעלה), ‏`RightsTests` (הגנת הספאון, גבול, Adventure, מאזין שמבטל את אירוע השבירה, כללי ממדים),
+‏`ProgressionTests` (‏SP לכל מפלצת, חלון סיוע, בלי SP משחקנים, נוסחה למפלצות לא מוכרות, שערי פתיחה, עקומת ניסיון
+שליטה, תקרות קנייה, ES), ‏`LoadoutTests`, ‏`MatchupTests` (כל גורם), ‏`AreaTargetsTests`, ‏`VictimTests` (‏TTL של נתוני הצירוף).
+
+לכל יכולת (מחלקה אחת לכל נתיב אלמנט; כל יכולת לפחות אלה, בקבוצת המבחנים של הנתיב `earth`, `earth_blocks`,
+‏`earth_pvp`…; יכולות כבדות-מצב בקבוצה משלהן עם `fixture` בסגנון `bossFixture` שמנקה סכנות):
+
+| יכולת | מבחנים (השמות אומרים מה הם בודקים) |
+|---|---|
+| זריקת סלע | `aRockLiftsFromEarthAndHurtsAZombie`, `noEarthMeansNoRockAndNoCooldown`, `masteryFourThrowsTwoRocks`, `masteryTenBoulderOnDoubleTap`, `theHoleRevertsAfterThreeSeconds`, `holdRockFollowsTheLookAndThrows`, `holdRockSetsDownWithoutDrops`, `aRockShattersOnAnEarthWall`, `aRockNeverBreaksGlass`, `pvpOffSparesPlayers`, `aClaimRefusesTheLift` (מאזין `BreakEvent` של `EventHub` מבטל), `underWaterIsRefused`, `aBossTakesDamageAndLittleKnockback` |
+| שריון אדמה | `formsOnEarthInTwentyTicksAndLocksInput`, `theShellTakesHitsFirst`, `speedIsReduced`, `crumblesUnderWater`, `shedBlastHurtsAndPushes`, `lightningHalvedWaterTimesOnePointFive`, `masteryEightSeismicSenseGlows` (פרדיקט הזוהר), `masteryTenReformsOnce`, `cooldownAfterBreak`, `wardenSonicBoomBypasses` |
+| עמוד אדמה | `risesUnderTheFeetAndCarriesThePlayer`, `stopsUnderACeiling`, `sinksAfterFifteenSeconds`, `aimedPillarAtMasteryFive`, `launchThrowsUpAndSparesTheFall`, `notOnEarthRefused`, `claimRefused` |
+| קיר אדמה | `risesInFourTicksThreeByTwo`, `sevenByFourAtMasteryTen`, `stopsArrowsAndRocks`, `sinksAfterTenSeconds`, `aPlayerInTheFootprintIsPushedOut`, `halfRefusedMeansNoWall`, `wallPushSlidesAndHurts`, `aNewWallReplacesTheOld`, `blockEntitiesAreNeverReplaced`, `waterUnderItIsRestored` |
+| כשפות חול | `sandStreamBlindsAndHurts`, `needsSandOrInventorySand`, `sandWallLastsSixSeconds`, `waterEndsASandWall`, `soulSandCountsInTheNether` |
+| חולות טובעניים | `sinksAZombieForFourSeconds`, `failsOnAStrongerEarthbender`, `tieFavoursTheDefender`, `neverABoss`, `patchRevertsAndFrees`, `pillarEscapes`, `sandCloudBlinds` |
+| כשפות לבה | `pathRunsThroughEarthOnly`, `stopsAtWaterAndClaims`, `theBenderWalksTheirPathUnharmed`, `pathCoolsAndReverts`, `shurikenHurtsAndBurns`, `twoDiscsAtMasteryEight`, `passiveResistanceByMastery`, `lavaImmunityTenSecondsAtTen`, `itemsNeverBurn`, `netherFreeBesideLava` |
+| סכיני פלדה / משיכת מתכת | `threeKnivesAtOneSevenAtTen`, `knivesCostChargeAndReturn`, `pullFillsChargeFromOresWithoutRemovingThem`, `pullTakesIngots`, `noChargeNoKnivesNoCooldown`, `knivesStickAndRecall`, `earthWallStopsKnives` |
+| קיר פלדה / שריון פלדה | `plateWallFromCharge`, `chargeReturnsWhenItEnds`, `explosionBreaksAPlate`, `armourConductsLightning`, `armourAndEarthArmourExclude`, `masteryTenDoorOpensForTheOwner` |
+| ריסוק מתכת / אחיזת מתכת | `aHopperIsWreckedAndPassesNothing`, `aRailDerails`, `contentsSurviveTheWreckAndMend`, `mendsAfterSixtySeconds`, `theTagDecidesTheList`, `threeByThreeAtFive`, `gripLiftsAnArmouredZombie`, `gripRefusesUnarmouredPlayers`, `gripRefusesBosses`, `sheddingArmourFrees`, `flingHurts` |
+| פיצוץ אוויר | `pushesInAConeByMastery`, `pushesPlayersWithoutPvpWhenAllowed`, `deflectsArrowsAndFireballs`, `extinguishesFires`, `airJumpLaunchesAndSparesTheFall`, `blastWhileGlidingLiftsAtMasterySix`, `halfRangeUnderWater`, `bossesBarelyMove` |
+| מגן אוויר | `flingsProjectilesAndPaysStrength`, `meleeGoesThroughAtThreeQuarters`, `breaksAndBurstsForThreeAndAHalfHearts`, `theBurstOptionIsFour`, `loweringNeverBursts`, `manualBurstAddsLeftover`, `refusedInWater`, `tornadoCancelsIt`, `masteryTenDeflectsLightningOnce` |
+| הגלשן | `onlyAnAirbenderOpensIt`, `glidesSlowerThanElytra`, `dyeRecolours`, `closesInWater`, `blastDownLaunches` |
+| להבי אוויר | `twoAndAHalfHearts`, `passesOneCreature`, `cutsPlantsWhereAllowed`, `twoBladesAtFourThreeAtEight`, `wallsStopIt`, `airSliceSweeps` |
+| השלכה רוחנית | `theBodySitsAndTheSpiritFlies`, `rangeByMastery`, `damageToTheBodySnapsBack`, `durationEnds`, `cannotCrossDimensions`, `theSpiritCannotInteract`, `logoutEnds`, `deepMeditationHeals`, `masteryTenShieldsTheBody` |
+| בועת אוויר | `breathesUnderWater`, `coversAFriendAtSix`, `cushionRemovesFallDamage`, `popsUnderASpout` |
+| קורקינט אוויר | `mountsAndMoves`, `speedByMastery`, `climbsOneBlockSteps`, `crossesWater`, `wallRideAtSix`, `passengerAtEight`, `burstAtTenOnDismount`, `waterShotKnocksOff` |
+| טורנדו | `liftsAndHurts`, `twoAtEight`, `steeringAtFive`, `wallsStopIt`, `bossesNeverLifted`, `liftsNoBlocks`, `itemsSurvive`, `whirlpoolUnderWater` |
+| דרכו של זהיר | `aPetDeathOpensIt`, `onlyNearbyWithTheOption`, `flightWorks`, `suffocationHurtsUntilDistance`, `breathlessMobsImmune`, `damageBreaksTheHold`, `airVacuumSnuffsFire`, `pushLessHitHarder`, `resetCommand` |
+| זריקת מים | `needsASource`, `theSkinIsUsedWhenNoWater`, `plantsAtMasterySevenDry`, `oneAndAHalfHearts`, `timesOnePointFiveOnFirebenders`, `extinguishesAndWets`, `whipLashesAndPulls`, `twoStreamsAtFour`, `lobAtTen`, `rainIsASource`, `netherSkinOnly` |
+| ריפוי | `healsAFriendByMastery`, `healsSelfWithNoTarget`, `movementBreaksIt`, `removesPoisonSlowly`, `cleanseAtOnce`, `neverHostiles`, `fullHealthCostsNothing` |
+| תמנון מים | `formsWithThreeCharges`, `slapsProjectiles`, `extraArmsOnHits`, `lashPulls`, `flamethrowerEvaporatesArms`, `freezeStiffens`, `lightningTimesOnePointFive`, `dropsWithoutASource` |
+| זרם מים | `tinyAtOneTallAtTen`, `ramHurts`, `overLandItShrinks`, `lightningCollapsesIt`, `freezeAtEight`, `waveRideCarries`, `needsWaterNotSkinBelowFive` |
+| זרועות מים | `reachAndDamageByMastery`, `noItemsInHand`, `grabPulls`, `climbAtFour`, `flamethrowerDropsThem`, `freezeStiffens` |
+| קרח | `knivesSlowAndShatter`, `fireMeltsKnivesInFlight`, `spikesEruptAndMelt`, `freezeMakesABridgeThatMelts`, `freezeRootsWetFeet`, `freezeStiffensConstructs`, `snowVolley`, `iceWallAtTheMidpoint`, `fireMeltsFourBlocksPerBall`, `iceDomeCloses`, `netherHalfLife` |
+| כשפות דם | `onlyOnAFullMoonBelowTen`, `atTenAnyNight`, `noMoonInTheNetherBelowTen`, `failsOnAStrongerWaterbender`, `puppetMovesWithTheLook`, `holdTimeByMastery`, `flingHurts`, `lightningBreaksTheHold`, `twoHeartsBreakTheHold`, `undeadImmune`, `bossesImmune`, `twoTargetsAtTen`, `masteryXpTimesFour` |
+| ניתוק כשפות | `needsMasteryTen`, `upClose`, `durationByStrength`, `theSeveredCannotBend`, `survivesLogout`, `healingRestoresEarlyWhenAllowed`, `expires` |
+| כדור אש | `twoHeartsAndBurning`, `sizeByMastery`, `twoAtFiveThreeAtEight`, `greatFireballAtTen`, `smallFireballFromSix`, `waterBurstsIt`, `refusedInWater`, `rainReduces`, `netherBoosts`, `fireMobsImmune`, `noFiresWithoutTheOption` |
+| אגרוף אש | `fistsAddDamageAndBurn`, `ignoresSomeArmour`, `comboAtFour`, `jabAtSeven`, `kickArcs`, `noItemsWhileOn` |
+| להביור | `twoJetsHurtEveryHalfSecond`, `rangeByMastery`, `meltsIce`, `breathAtSevenLocks`, `waterShotPutsItOut`, `vacuumKills`, `exhaustion` |
+| שוט אש | `strokesEveryTwelveTicksAndIgnite`, `lengthByMastery`, `blockFiresOnlyWhereAllowed`, `cutsARockAtSeven`, `wrapsAtTen`, `lashCracks`, `waterWhipCancels` |
+| מעגל אש | `ringExpandsAndHurts`, `legsFromSix`, `waterCutsAGap`, `meltsIce`, `jetLiftsAndSteers`, `jetBreaksAGrip`, `doubleAtTen` |
+| ריפוי באש | `slowerThanWater`, `poisonTicksSlower`, `burnOutCleansesAndHurts` |
+| ברק | `chargeLocksAndFires`, `fourAndAHalfHeartsAndParalysis`, `dualAtTen`, `wetAndMetalTimesOnePointFive`, `earthArmourHalves`, `rodsAttract`, `inWaterShocksTheCaster`, `chargedCreeper`, `noVanillaBoltNoFireNoWitch`, `arcJab`, `cancelOnRelease` |
+| הטיית ברק | `chanceByMastery` (‏RNG עם זרע), `successReturnsFullDamageAtTheLook`, `failureHurtsAndDrops`, `windowTenTicks`, `autoFireAtEight`, `groundItHeals`, `steelArmourAlwaysFails`, `vanillaBoltRedirectable`, `twoBoltsAtTen` |
+
+בין אלמנטים: ‏`MatchupTests` (כל שורה של 1.7), ‏`CrossElementTests` (סלע נגד מגן אוויר, טורנדו נגד זרם מים,
+מעגל אש מתחת לטורנדו, מים על שביל לבה, ברק על קיר פלדה, דם נגד דם), ‏`CoexistenceTests` (התקרות של שני
+כשפים בלתי תלויות; ספירת הישויות והבלוקים הזמניים של ארבעה כשפים נשארת מתחת לגבולות בקרב מתוסרט).
+
+הכללים של Enhanced עוברים הלאה: קבוצת מבחנים אחת לכל נתיב; מבחן ששינה הגדרת שרת (‏`f.config`, `f.pvp`, הירח)
+בקבוצה משלו; להשאיר דברים מעופפים בתוך זירת 21 הבלוקים; ‏`fixture` מנקה כל סטטי (‏`Hazards.clear`,
+‏`TempBlocks.clear`, `Victims.clear`, `ContinuousBeam.clear`, הסטטיים של `ElementServers`); למחוק את `run/world` ואת
+‏`run/config/bending-server.toml` לפני הרצה מלאה; שורת ההצלחה `All N required tests passed`; ‏CI ‏45 דק׳.
+
+### 14.2 רשימת הבדיקה במשחק אמיתי (ידנית, לכל נתיב, ההליך של Enhanced)
+
+שרת ייעודי + **שני לקוחות** (אחד באנגלית, אחד בעברית), הלקוח השני **צופה** במה שאחרים רואים, **3+
+סבבי רינדור** לכל נתיב, צילומי מסך בשם `<lane>/<ability>-<view>-<lang>.png` שנשמרים ב-`docs/screenshots/qa/` (לא
+נשלחים עם המוד), עם F2:
+
+1. כל יכולת, גוף שלישי מהלקוח השני: הכנה, שחרור, התאוששות קפואות עם `/bending_anim target <p>`
+   + `play <gesture> <tick>` ב-3 טיקים (התחלה, שיא, סוף); הליכה במהלך ההטלה; וריאציית ההתכופפות.
+2. גוף ראשון: הידיים באותם שלושה טיקים; שכבת הכיסוי (חריץ, רוח, דם, שיתוק, בועה, חום, מסלול
+   ההטיה); רעידת מצלמה ו-FOV עם *Reduced motion* ובלעדיו.
+3. אפקטים ב-1, 8, 24 ו-48 בלוקים; עם *Effect density* ‏0.25; חלקיקי vanilla "Minimal"; בלילה ובגשם.
+4. עמידת סרק (מקש מוחזק), אפקט האווירה של המאסטר (קובעים ES עם `/bending mastery`), דמות הריצה, נחיתה.
+5. מראות: כל מראה מלפנים/מאחור/מהצד, עם השריון/התמנון/הגלשן מעליו, הפרצופים של בורר המראות.
+6. מסכים: כל לשונית בשתי השפות, חלון צר (854×480) ורחב; בחירת האלמנט עם 1–4 מקשים; בדיקות ימין-לשמאל
+   בעברית (שמות מקשים, מספרים, יחידות).
+7. HUD: כל שורת מצב, החלפת ההתכופפות, סחיפות זמן ההמתנה, מד המים בכל מקור, הירח בלילה של ירח
+   מלא (‏`/time set 18000` על שלב 0: `/bending debug moon 0`), מצב רוח, מנותק, משותק; גם כש-Enhanced
+   מותקן (שחקן עם כוח ועם אלמנט: שני הלוחות, בלי חפיפה).
+8. צלילים: כל אירוע נשמע ב-1, 8, 24 בלוקים; לולאות מתחילות/נעצרות/עוקבות; נושאי המוזיקה והסטמים; כתוביות בשתי
+   השפות.
+9. בין לואדרים: אותן בדיקות עם **לקוח Fabric על שרת NeoForge ולקוח NeoForge על שרת
+   Fabric**; עולם ששמור על לואדר אחד ונפתח על השני שומר על כל כשף (ה-`SavedData`).
+10. קרב של ארבעה כשפים במשך 2 דק׳: זמן פריים ב-F3 וספירות ישויות/חלקיקים (התקציב של `ANIMATION.md` 13).
+
+### 14.3 CI
+
+‏`.github/workflows/build.yml` כמו של Enhanced: ‏`./gradlew build` (מריץ `portLint` לשני הלואדרים), ‏`:neoforge:runGameTestServer`,
+‏`:fabric:runGameTest`, ‏`tools/parity.py build/gametest/*.json` (נכשל על כשל בלואדר אחד בלבד), העלאת קובץ ה-JAR האוניברסלי,
+שחרור על `main`. ‏`wiki.yml` כמו של Enhanced עבור `docs/wiki/`.
