@@ -268,3 +268,133 @@ furnace|anvil|metal_block` (8 בלוקי `WreckedBlock` שנושאים את המ
 ```
 Codec<BenderSave> = RecordCodecBuilder:
   element: Element (string; "none")
+  points: int                              // unspent SP
+  pointsEarned: int                        // lifetime SP (for stats)
+  unlocked: List<String>                   // ability ids (bending ability id "earth.rock_throw")
+  mastery: Map<String, MasteryEntry{level:int, xp:int, bought:int}>
+  loadout: List<String> (4 entries, "" for empty)
+  presets: List<Preset{name:String, slots:List<String>}> (≤ 4)
+  look: String ("" = default)
+  gliderDye: String (DyeColor name)
+  zaheer: boolean, zaheerAt: long
+  severedUntil: long (game time, 0 = none), severedBy: UUID?
+  elementChosenAt: long
+  version: int (1)
+```
+נכתב בשינוי (dirty) ובשמירת העולם; נקרא בכניסה; **`BenderData`** (נתוני הצירוף המסונכרנים של זמן הריצה, בצורה של
+`PowerData` של Enhanced: `element`, `look`, מזהי `loadout` כמספרים סידוריים של `Ability`, ‏`toggles` (ביטים כמספר שלם), ‏`live`/`liveHigh`
+(שני long של ביטי `Live`), ‏`cooldownUntil[4]` + `sneakCooldownUntil[4]`, ‏`armourHealth`, `metalCharge`, `shieldStrength`,
+`waterCharge` (השק המלא ביותר, בשביל ה-HUD), ‏`spiritId`, `heldEntityId`, `points`, `elementStrength`, `severedUntil`,
+`zaheer`, רמות השליטה כ-`byte[]` לפי המספר הסידורי של היכולת (לפסי ה-HUD), ‏`dirty`) **אינו נשמר**: הוא נבנה מחדש
+מ-`BenderSave` בכניסה/בהחייאה/במעבר ממד על ידי `Benders.load(player)` ומסונכרן לכל מי שרואה את השחקן
+(‏`SyncTo.ALL`) דרך `Attach.builder("bender", BenderData::new).sync(STREAM_CODEC).build()` המועתק. מכיוון
+שה-stream codec שולח מספרים סידוריים, **כל היכולות של גרסה אחת חייבות להיות באותה בנייה** (הכלל של Enhanced עבור `Power`);
+המזהים השמורים הם מחרוזות, ולכן הסדר אף פעם לא משנה בדיסק. פקודות `/bending` עורכות את `BenderSave` וקוראות
+ל-`Benders.load`.
+
+### 5.2 ‏`WorldSave` (‏`SavedData` לכל ממד, ‏`data/bending_world.dat`)
+
+`tempBlocks: List<TempBlock{pos, original:BlockState(+nbt), placed:BlockState, revertAt:long, owner:UUID, kind:byte}>`
+(היומן: מוחזר בטעינה), ‏`hazardsForRecovery` (אין: סכנות מתות עם השרת), ‏`moonBellsHeard: Set<UUID>`
+(קוסמטי), ‏`offlineSevered: Map<UUID, long>` (כדי ששחקן מנותק שיוצא מהמשחק יישאר מנותק: גם ב-`BenderSave`).
+
+### 5.3 ‏`bending:victim` (נתוני צירוף על כל `LivingEntity`, מסונכרן, לא נשמר)
+
+`kind: byte` (NONE, STAGGER, KNOCKDOWN, STUCK_SAND, STUCK_ICE, LIFTED, TUMBLE, CLUTCH, SPIN, SOAKED, CHILLED, PUPPET,
+PARALYSED, SEVERED), ‏`until: long`, ‏`caster: int` (מזהה ישות, בשביל המשך הטופר של הבובה), ‏`param: float`. נכתב על ידי
+`Victims.mark(entity, kind, ticks, caster)`; נמחק לפי TTL בטיק הישויות של `BenderTicker` (רק ישויות עם
+נתוני הצירוף מתקתקות: קבוצה קטנה שנשמרת ב-`Victims`).
+
+### 5.4 קובצי הגדרות
+
+`config/bending-server.toml` (נדרס על ידי `<world>/serverconfig/bending-server.toml`; מסונכרן ללקוחות בשלב
+ההגדרה (configuration) על ידי `ConfigSyncPayload` המועתק) עם הסעיפים: `[bending]` (כללי: `allowWithEnhancedPower`,
+`pushPlayersWithoutPvp`, `pressExhaustion`, `holdExhaustionPerSecond`, ‏`effectRadius` 64), ‏`[progression]` (נקודות לכל
+רשימת מפלצות `pointsPerMob = ["minecraft:zombie=1", …]`, ‏`pointsFormulaDivisor` 20, ‏`pointsCap` 50, ‏`assistWindowTicks`,
+‏`freePoints` 3, רשימת `masteryXp`, ‏`masteryBuyCap` 7, רשימת `masteryBuyCost`, עלויות פתיחה לכל יכולת `unlockCost.<id>`,
+שערים `gate.<id>`), ‏`[matchups]` (כל גורם של 1.7), ‏`[limits]` (כל תקרה של 1.8 ושל `ANIMATION.md` 13), ‏`[earth]`,
+‏`[air]`, ‏`[water]`, ‏`[blood]`, ‏`[fire]`, ‏`[lightning]` (כל מספר בסעיפים 2–5 של `DESIGN.md`, מפתחות ב-lowerCamelCase כמו
+ב-Enhanced: `rockDamage`, `rockCooldown`, `wallSeconds`, `armourShellHealth`, …), ‏`[extras]` (מתגי ההצעות, כולם
+`false` עד שייבנו), ‏`[music]`. ‏`config/bending-client.toml`: ‏`UI.md` 2.3.
+
+## 6. בלוקים זמניים: `TempBlocks`
+
+```
+TempBlocks.place(ServerLevel, ServerPlayer owner, BlockPos, BlockState placed, int ticks, Kind kind) -> boolean
+TempBlocks.placeAll(level, owner, Map<BlockPos, BlockState>, ticks, kind) -> int placed   // walls: all-or-nothing by the half rule
+TempBlocks.revert(level, pos) / revertAll(level, owner, kind) / revertOldest(level)
+TempBlocks.isTemp(level, pos) -> Optional<TempBlock>
+TempBlocks.tick(level)   // LevelTickEvent.Post: reverts due entries; waits up to 200 ticks while a player stands inside, then pushes them up
+TempBlocks.onBroken(level, pos)  // BlockEvent.BreakEvent / a changed state: the ledger entry is dropped (the original is NOT restored: whoever broke it gets nothing: temp blocks have no drops: `WreckedBlock`/`SteelPlate`/`IceSpike`/`Quicksand`/`TempLava` loot tables are empty, and a temp **earth** block (a real stone/dirt state) is placed with the ledger flag `noDrops`, which `LivingDropsEvent`… no: `BlockDropsEvent` cancels drops for ledgered positions)
+```
+כללים: תא ממוקם רק אם `BendingRights.mayChange(owner, level, pos)` (סעיף 7); אף פעם לא מעל ישות בלוק,
+בדרוק, מסגרות פורטל, פורטל הקצה, ‏deepslate מחוזק, בלוקי פקודה, ‏`bending:unbendable`, או בלוק של מוד אחר
+אלא אם הוא בתגים; **המצב המקורי וה-NBT של ישות הבלוק** נרשמים (‏`original`, `originalNbt`) ומוחזרים
+בדיוק (‏`setBlock(pos, original, UPDATE_ALL | UPDATE_SUPPRESS_DROPS)`, ה-NBT נטען מחדש); **דגלים** בהצבה
+‏`UPDATE_CLIENTS | UPDATE_KNOWN_SHAPE | UPDATE_SUPPRESS_DROPS` (‏`ArenaLoans.FLAGS` של Enhanced) כדי שבוכנות, מים ו-
+רדסטון מסביב לא יופעלו על ידי הבלוק הזמני מעבר לעדכון החזותי (בלי עדכוני שכנים: קיר זמני לא
+שובר קו רדסטון; זה גם אומר שקיר זמני לא מעדכן observers: זה בסדר). **נוזלים:** בלוק זמני שהוצב
+במים רושם את המים ומחזיר אותם; תא לבה זמני ליד מים אף פעם לא יוצר אבן (לבה זמנית אינה
+נוזל). **תקציבים**: תקרות לכל שחקן ותקרות גלובליות (`[limits]`); חריגה מחזירה את הישן ביותר של אותו שחקן. **יומן**:
+כל רשומה משוקפת ל-`WorldSave.tempBlocks` בהצבה ומוסרת בהחזרה (דגל dirty; vanilla שומר אותו
+עם העולם), וב-`ServerStarted`/טיק העולם הראשון מוחזרת כל רשומה שעדיין ביומן (התאוששות מקריסה). **בלוק
+זמני שנפגע מכוח של Enhanced**: Enhanced שובר בלוקים דרך אירוע השבירה של הלואדר או `destroyBlock`; שניהם
+מגיעים ל-`onBroken` (‏`BlockEvent.BreakEvent` לראשון; בדיקה ב-`LevelTickEvent` של `level.getBlockState(pos) !=
+placed` לשני, כל 20 טיקים לכל רשומה), שמוחק את רשומת הפנקס: החור נשאר כפי ש-Enhanced השאיר אותו (קיר
+שנהרס על ידי Thor נהרס; גם מה שהיה מתחתיו נעלם: מקובל, מתועד).
+
+## 7. ‏`BendingRights` (‏`BlockRights` של Enhanced, מותאם)
+
+```
+mayChange(ServerPlayer, ServerLevel, BlockPos)      // for temp blocks: vanillaRights && !protectedByOthers && postBreak-equivalent (BlockEvent.BreakEvent of the current state) && postPlace-equivalent (EntityPlaceEvent)
+mayHurtBlock(...)                                    // for fires: + mobGriefing + [fire] setsFires
+vanillaRights(player, level, pos)                    // mayBuild, mayInteract (spawn protection, border), blockActionRestricted
+protectedByOthers(player, level, pos)                // EnhancedHooks (Hex wall, boss arenas, Asgard, Mirror Dimension) if present
+dimensionAllows(level, kind)                         // the 1.9 rules
+```
+כל יכולת שנוגעת בבלוק קוראת ל-`TempBlocks.place` (ששואל את `mayChange`); אש קוראת ל-`mayHurtBlock`.
+
+## 8. צורת תוסף האלמנט (‏`HeroServer`/`HeroClient` של Enhanced, מותאם)
+
+**שרת `ElementServer`** (אחד לכל אלמנט, רשום ב-`ElementServers`): ‏`element()`, ‏`onKey(player, data, slot,
+down, sneak)` (הנתב: `Loadout.abilityIn(slot)` ← מטפל `press/hold/toggle` של היכולת; התכופפות בוחרת
+את הווריאציה), ‏`tick(player, data)`, ‏`everyPlayerTick`, ‏`applyBody` (פסיביות, מאפיינים: מהירות, שריון, טיסה), ‏`endAll`
+(האלמנט הוסר/נותק), ‏`stopHold(data)`, ‏`onLogin/Logout/Death/Respawn/ChangeDimension/ServerStopped`, ועוד
+‏`onHit(attacker, target, event)` (בשביל אגרוף אש, תמנון, זרועות מים: `LivingDamageEvent.Pre`), ‏`onHurt(victim, event)`
+(מעטפות שריון, מגנים, הטיה, פסיביות). יכולות הן **אובייקטים**: ‏`interface AbilityLogic { void press(ctx);
+void release(ctx); void tick(ctx); void end(ctx); }` עם מפתח מהמחלקה `Ability` מסוג enum, עם `AbilityContext(player, data,
+level, now, sneak, mastery, config)`; כל מספר נקרא מההגדרות דרך `ctx.config().get(...)` בזמן השימוש (אף פעם לא
+נשמר במטמון: הכלל של Enhanced). **זמני המתנה** לכל משבצת ב-`BenderData.cooldownUntil[slot]` וב-`sneakCooldownUntil[slot]`
+(וריאציית ההתכופפות חולקת את המשבצת אבל יש לה טיימר משלה כדי שה-HUD יוכל להציג את שניהם); ‏`Cooldowns.start(data, slot, sneak,
+ticks)`; יכולת שלא עשתה כלום לא מתחילה זמן המתנה (כך שאף תנועה לא משקרת: הכלל `AnimationSignalTests` של Enhanced).
+
+**לקוח `ElementClient`** = שיטות `HeroClient` של Enhanced (‏`hudStatus`, `shieldStyle`, `eyes`, `stanceTargets`, `edges`,
+`takeoffGesture`, `lean`, `drop`, `ambient`, `aimed`, `predictedGesture(s, data, slot, now, sneaking)`, ‏`registerGestures`,
+‏`cooldownGesture(slot, sneak, left)`, ‏`flagGesture`, `liveGesture`, `grabGesture`, `flingGesture`, `startedElsewhere`,
+‏`gestureStarted`, `firstPerson`, `flightParticles`, `flightRibbons`, `tick`, `clear`) ועוד `onFx(payload)`; רשום ב-
+‏`ElementClients`.
+
+**‏`AbilityHandler.onKey`**: כמו של Enhanced: משמיט לחיצות של שחקן שאינו יכול לפעול (מת, מנותק, משותק, תחת כשפות דם,
+גוף מתבונן), תמיד מעביר שחרורים; קורא ל-`ElementServers.of(data.element()).onKey`.
+
+## 9. חלוקה בין שרת ללקוח וסנכרון, לפי סוג אפקט
+
+| סוג אפקט | שרת | ברשת (wire) | לקוח |
+|---|---|---|---|
+| מצב גוף השחקן (מתגים, החזקות, זמני המתנה, טעינות, מזהים מוחזקים) | שדות `BenderData` שנקבעים על ידי יכולות | נתוני הצירוף המסונכרנים (כל שינוי מקובץ לסנכרון אחד לטיק על ידי `Benders.syncIfDirty`) | תנועות מקצוות (‏`GestureRoutes`), עמידות מ-`Live`/`Toggle`, HUD |
+| אפקטי עולם חד-פעמיים (פגיעות, התפרצויות, טבעות, רמיסות, היווצרות, רמזים) | `ElementFx.send(level, near, kind, id, a, b, c, d)` | `<Element>FxPayload(byte kind, int id, Vec3 a, Vec3 b, int c, int d)` לשחקנים בתוך `effectRadius` 64 (‏`Net.sendToPlayersNear`) | `<Element>Fx.handle` ← סימולציה דטרמיניסטית בלקוח לפי `age` (הדפוס `SandFx` של Enhanced); תנועות דרך סוגי `startedElsewhere` |
+| אובייקטי עולם מתמשכים עם מיקום (קירות, עמודים, חולות טובעניים, שביל לבה, דיסקית קרח) | בלוקים זמניים (העולם עצמו מסנכרן אותם) + הודעת FX אחת בהתחלה בשביל האבק/הרמז | בלוקים | ה-`BendingWorldFx` מצייר קישוטים (אבק, צווארונים, נצנוץ) מפנקס בצד הלקוח שמוזן מההודעה ומנוקה כשהבלוק משתנה |
+| ישויות נעות (סלעים, להבים, סכינים, כדורים, זרמי מים, טורנדו, רוח, זריקות) | ישויות עם `SynchedEntityData` למה שהרנדרר צריך (מצב, גודל, שלב, רוכב) | סנכרון הישויות של vanilla | רנדררים של ישויות; מיקום המשפך של הטורנדו מושלם מהודעות של 4 טיקים (כמו ב-Enhanced), והשאר ממיקומי הישויות |
+| קרניים (להביור, נשימה) | `ContinuousBeam` (מועתק) | `BeamPayload(shooter, style, range, on)` בהתחלה/עצירה וכל 8 טיקים | `BeamRenderer` עם מצייר הלהבה; הלקוח מחשב בעצמו ray-cast לקצה |
+| החזקות עם קורבן (דם, חנק, אחיזת מתכת, בובה) | ביט `Live` אצל המכשף + `bending:victim` אצל המטרה | שני נתוני הצירוף המסונכרנים | חוטים שמצוירים בין המכשף לקורבן; ‏`VictimPoses`; נעילת הקלט של הקורבן מנתוני הצירוף שלו עצמו |
+| מגנים (מגן האוויר, בריאות מעטפת השריון) | `BenderData.shieldStrength` / `armourHealth` | נתוני הצירוף | כיפת `ShieldStyle` / סדקי שכבת השריון; אדוות פגיעה דרך סוגי הודעת FX ‏`SHIELD_HIT`/`ARMOUR_HIT` |
+| ברק | הברק מיידי בשרת (ray-cast, נזק) | `FireFxPayload BOLT(from, to, c=branches seed, d=flags)` עד 64 בלוקים; ‏`THUNDER` ל-24–64 | ‏`LightningFx` ברק של 8 טיקים, הבזק, רעם שמתעכב לפי מרחק |
+| רוח | `SpiritEntity` בבעלות השחקן; השרת אומר ללקוח להשתלט עליה | `SpiritPayload(POSSESS/RELEASE, entityId)` | ‏`SpiritCamera` קובע `mc.setCameraEntity(spirit)`; הקלט מנווט את הרוח (הלקוח שולח תנועת vanilla עבור הרוח כישות נשלטת "דמוית רכב": הרוח היא `Entity` בלי `PlayerRideableJumping` שהתנועה שלה נשלחת דרך `SpiritMovePayload(Vec3 wanted)` ‏20 לשנייה, והשרת מזיז אותה בטווח ומאמת מהירות) |
+| רכיבות (קורקינט, זרם מים) | רכבים | סנכרון נוסעים של vanilla + קלט דרך `ServerboundPlayerInputPacket` (‏vanilla שולח את הקלט של הרוכב עבור רכבים) | רכב שנשלט בצד הלקוח כמו סירה (‏`controlVehicle` של הישות) |
+| מסכים | `ElementScreenPayload`, ‏`BendingActionPayload` (לכיוון השרת: UNLOCK/BUY_MASTERY/LOADOUT/PRESET/LOOK/CHOOSE), תוצאות דרך נתוני הצירוף | | |
+| צלילים | `level.playSound` (סנכרון vanilla) לצלילים חד-פעמיים; לולאות בצד הלקוח מתנאי `Live`/`Toggle` (‏`PowerLoopSounds`) ולולאות הקשורות לישות | vanilla | |
+| הגדרות | טקסט ה-TOML של השרת בשלב ההגדרה (‏`ConfigSyncPayload`) | | הלקוח קורא את אותם ערכים (הניבוי משתמש בהם) |
+
+**ניבוי (prediction)**: הלקוח מנגן תנועה מיד בלחיצת מקש כש-`BenderData` שלו וההגדרות המסונכרנות אומרים שהיכולת
+תעבוד (‏`predictedGesture`), ובולע את הקצה של השרת בתוך 12 טיקים (לוגיקת `GestureTable` מועתקת); שימושים שנדחו
+מתנגנים עד הסוף בלי נזק.
